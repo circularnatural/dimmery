@@ -4,12 +4,12 @@ import json
 import sys
 from pathlib import Path
 
-from dimmery import __version__, core
+from dimmery import __version__, buildinfo, core
 
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="dimmery", description=__doc__)
-    p.add_argument("--version", action="version", version=f"dimmery {__version__}")
+    p.add_argument("--version", action="version", version=f"dimmery {__version__} ({buildinfo.describe()})")
     p.add_argument("command", choices=["tick", "show", "gui"], nargs="?", default="gui")
     p.add_argument("--config", type=Path, default=core.CONFIG_PATH)
     p.add_argument("--state-dir", type=Path, default=core.STATE_DIR)

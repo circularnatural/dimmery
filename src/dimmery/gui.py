@@ -4,6 +4,7 @@ The tray app runs the tick itself every `interval_minutes`; ddcutil calls take
 ~1.5 s, so they run in a worker thread.
 """
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -25,7 +26,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from dimmery import __version__, core
+from dimmery import __version__, buildinfo, core
 
 
 def is_dark_theme() -> bool:
@@ -87,7 +88,7 @@ class AboutDialog(QDialog):
         logo.setPixmap(make_icon().pixmap(96, 96))
         text = QLabel(
             f"<h2>Dimmery</h2>"
-            f"<p>Version {__version__}</p>"
+            f"<p>Version {__version__} <small>({buildinfo.describe()})</small></p>"
             "<p>Brightness that learns your habits for an external monitor over DDC/CI.<br>"
             "You adjust it; dimmery remembers it per weekday and time slot, and brings it back.</p>"
             f'<p><a href="{REPO_URL}">{REPO_URL}</a><br>MIT License \u00b7 circularnatural</p>'
@@ -172,7 +173,7 @@ class Window(QWidget):
 class App:
     def __init__(self, cfg, state_dir, dry_run):
         self.cfg, self.state_dir, self.dry_run = cfg, state_dir, dry_run
-        self.paused, self.worker = False, None
+        self.paused, self.worker, self.restart_requested = False, None, False
         self.win = Window(cfg, state_dir)
         self.win.tick_btn.clicked.connect(lambda: self.tick())
         self.win.pause_btn.clicked.connect(self.toggle_pause)
@@ -186,6 +187,7 @@ class App:
             ("Tick now", lambda: self.tick()),
             ("Pause / Resume", self.toggle_pause),
             ("About", self.show_about),
+            ("Restart", self.restart),
             ("Quit", QApplication.quit),
         )
         for label, fn in entries:
@@ -205,6 +207,11 @@ class App:
     def on_tray_click(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self.win.show()
+
+    def restart(self):
+        """Quit and relaunch this same command, so a freshly installed version replaces the old one."""
+        self.restart_requested = True
+        QApplication.quit()
 
     def show_about(self):
         AboutDialog(self.state_dir, self.win).exec()
@@ -249,4 +256,7 @@ def run(cfg, state_dir: Path, dry_run=False):
     else:
         ui.win.show()  # no tray (e.g. headless): fall back to the window
     QTimer.singleShot(1000, lambda: ui.tick())
-    return app.exec()
+    code = app.exec()
+    if ui.restart_requested:
+        os.execv(sys.executable, [sys.executable, "-m", "dimmery", *sys.argv[1:]])
+    return code

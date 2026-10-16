@@ -1,76 +1,50 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "dimmery"
-dynamic = ["version"]
-description = "Brightness that learns your habits for a DDC/CI external monitor"
+version = "0.1.0"
+description = "Brightness that learns your habits for an external monitor over DDC/CI"
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
-authors = [
-    {name = "circularnatural"}
-]
+authors = [{ name = "circularnatural" }]
 keywords = ["brightness", "ddc", "ddcutil", "monitor", "linux"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
+    "Environment :: X11 Applications :: Qt",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
+    "Topic :: Desktop Environment",
 ]
-
 dependencies = []
-
-[project.urls]
-Homepage = "https://github.com/circularnatural/dimmery"
 
 [project.optional-dependencies]
 gui = ["PyQt6>=6.5"]
-dev = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "pytest-xdist>=3.0",
-    "ruff>=0.1.0",
-    "basedpyright>=1.0",
-    "build>=1.0",
-    
-    
-    
-    
-]
+dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
 dimmery = "dimmery.main:main"
 
-
-
+[project.urls]
+Homepage = "https://github.com/circularnatural/dimmery"
+Issues = "https://github.com/circularnatural/dimmery/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.setuptools.dynamic]
-version = {file = "VERSION"}
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
 
 [tool.ruff]
-line-length = 120
+line-length = 110
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-v --tb=short --import-mode=importlib -n auto"
-
-[tool.basedpyright]
-include = ["src", "tests"]
-pythonVersion = "3.11"
-typeCheckingMode = "basic"
-
-[tool.coverage.run]
-source = ["src"]
-omit = ["tests/*"]
-
-[tool.coverage.report]
-show_missing = true
-fail_under = 0
+[tool.ruff.lint.per-file-ignores]
+"src/dimmery/gui.py" = ["N802"]  # Qt overrides are camelCase

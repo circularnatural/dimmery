@@ -49,7 +49,8 @@ class TickWorker(QThread):
         try:
             self.done.emit(core.tick(self.cfg, self.state_dir, self.dry_run))
         except Exception as e:  # ddcutil missing, monitor off, ...
-            ev = {"action": "error", "error": str(e)[:200], "ts": datetime.now().isoformat(timespec="seconds")}
+            now = datetime.now().isoformat(timespec="seconds")
+            ev = {"action": "error", "error": str(e)[:200], "ts": now}
             core.log_event(self.state_dir, ev)
             self.done.emit(ev)
 

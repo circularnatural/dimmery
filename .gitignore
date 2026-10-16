@@ -1,37 +1,9 @@
-# Secrets — NEVER commit
-.env
-*.env
-!*.env.example
-
-# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
 *.egg-info/
-*.egg
-dist/
 build/
-.eggs/
+dist/
 .venv/
-venv/
-
-# Testing
 .pytest_cache/
-.coverage
-htmlcov/
-
-# Ruff
 .ruff_cache/
-
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Output
-output/
-data/
-reports/
+.coverage

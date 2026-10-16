@@ -24,7 +24,7 @@ Learning rule: `new = old + alpha * (your_value - old)`. The first value learned
 ## Usage
 
 ```bash
-pip install -e .                   # or: PYTHONPATH=src python3 -m dimmery ...
+pip install -e ".[gui]"            # or, without installing: PYTHONPATH=src python3 -m dimmery ...
 dimmery tick --dry-run             # decide and log, without writing to the monitor
 dimmery tick                       # one real tick (what a systemd timer would run)
 dimmery show                       # print the learned table
@@ -51,11 +51,22 @@ Early. Unit-tested, and a real read plus `--dry-run` tick were validated on an A
 - DDC/CI reads and writes take about 1.5 s each.
 - Single monitor per run (`display` or `serial` in the config).
 
+## Layout
+
+```
+src/dimmery/core.py     decision logic (pure) + ddcutil, config and state I/O
+src/dimmery/main.py     CLI: tick | show | gui
+src/dimmery/gui.py      tray icon and window (PyQt6, optional)
+contrib/systemd/        user units to run `dimmery tick` from a timer
+tests/                  no monitor needed; ddcutil is mocked
+```
+
 ## Development
 
 ```bash
-python3 -m pytest -o addopts="" tests
-python3 -m ruff check .
+pip install -e ".[dev,gui]"
+pytest
+ruff check .
 ```
 
 License: MIT.

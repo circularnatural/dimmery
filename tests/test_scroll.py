@@ -1,0 +1,54 @@
+from dimmery import core
+from dimmery.scroll import ScrollParser
+
+CALL = (
+    "method call time=1.5 sender=:1.921 -> destination=:1.910 serial=2 path=/StatusNotifierItem; "
+    "interface=org.kde.StatusNotifierItem; member=Scroll"
+)
+
+
+def feed_all(parser, lines):
+    return [hit for line in lines if (hit := parser.feed(line))]
+
+
+def test_parser_extracts_destination_delta_and_orientation():
+    hits = feed_all(ScrollParser(), [CALL, "   int32 120", '   string "vertical"'])
+    assert hits == [(":1.910", 120, "vertical")]
+
+
+def test_parser_ignores_other_messages_and_resets_between_calls():
+    other = "method call time=1 sender=:1.1 -> destination=:1.2 serial=3 path=/x; interface=a.b; member=Other"
+    lines = [other, "   int32 5", '   string "vertical"', CALL, "   int32 -120", '   string "vertical"']
+    hits = feed_all(ScrollParser(), lines)
+    assert hits == [(":1.910", -120, "vertical")]
+
+
+def fake_ddc(monkeypatch, brightness):
+    calls = []
+
+    def ddc(cfg, *args):
+        calls.append(args)
+        if args[0] == "setvcp":
+            brightness[0] = int(args[2])
+        return f"VCP 10 C {brightness[0]} 100\n"
+
+    monkeypatch.setattr(core, "ddc", ddc)
+    return calls
+
+
+def test_nudge_moves_by_step_and_learns_it(monkeypatch, tmp_path):
+    level = [40]
+    calls = fake_ddc(monkeypatch, level)
+    core.tick(core.DEFAULTS, tmp_path)                  # seed: remembers 40
+    ev = core.nudge(core.DEFAULTS, tmp_path, steps=2)   # wheel up two notches -> 50
+    assert ("setvcp", "10", "50") in [tuple(a) for a in calls]
+    assert ev["action"] == "learn" and ev["new"] == 45  # blended with the remembered 40 (alpha 0.5)
+    assert level[0] == 50
+
+
+def test_nudge_clamps_to_range_and_dry_run_writes_nothing(monkeypatch, tmp_path):
+    level = [98]
+    calls = fake_ddc(monkeypatch, level)
+    core.nudge(core.DEFAULTS, tmp_path, steps=3, dry_run=True)
+    assert not any(a[0] == "setvcp" for a in calls)
+    assert core.read_events(tmp_path)[0]["target"] == 100

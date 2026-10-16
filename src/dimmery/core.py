@@ -31,6 +31,7 @@ DEFAULTS: Config = {
     "interval_minutes": 30,
     "alpha": 0.5,
     "tolerance": 2,
+    "scroll_step": 5,
     "min": 0,
     "max": 100,
 }
@@ -147,3 +148,14 @@ def tick(cfg: Config, state_dir: Path = STATE_DIR, dry_run: bool = False) -> Eve
     (state_dir / "state.json").write_text(json.dumps(state))
     log_event(state_dir, ev)
     return ev
+
+
+def nudge(cfg: Config, state_dir: Path = STATE_DIR, steps: int = 0, dry_run: bool = False) -> Event:
+    """Move the brightness by ``steps`` * scroll_step, then tick so the change is learned right away."""
+    current = read_brightness(cfg)
+    target = max(cfg["min"], min(cfg["max"], current + steps * cfg["scroll_step"]))
+    log_event(state_dir, {"ts": datetime.now().astimezone().isoformat(timespec="seconds"), "action": "scroll",
+                          "read": current, "target": target, "dry_run": dry_run})
+    if target != current and not dry_run:
+        ddc(cfg, "setvcp", "10", str(target))
+    return tick(cfg, state_dir, dry_run)

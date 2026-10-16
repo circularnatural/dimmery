@@ -31,6 +31,10 @@ dimmery show                       # print the learned table
 dimmery gui                        # tray icon + window; runs the ticks itself
 ```
 
+In the tray, spin the mouse wheel over the icon to nudge the brightness (`scroll_step` % per notch, default 5);
+the change is learned right away like any manual adjustment. This relies on `dbus-monitor` (package
+`dbus-bin`), because Qt does not expose the wheel event of a tray icon.
+
 `contrib/systemd/` has user units to run `dimmery tick` from a timer instead of the tray.
 
 ## State and config
@@ -38,7 +42,7 @@ dimmery gui                        # tray icon + window; runs the ticks itself
 - `~/.local/state/dimmery/state.json`: learned table.
 - `~/.local/state/dimmery/events.jsonl`: append-only log of every decision (read, learn, apply, error).
 - `~/.config/dimmery/config.toml` (optional): `display`, `serial`, `slot_minutes`, `alpha`, `tolerance`,
-  `min`, `max`, `interval_minutes`.
+  `min`, `max`, `interval_minutes`, `scroll_step`.
 
 ## Status
 

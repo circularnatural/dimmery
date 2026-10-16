@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
 )
 
 from dimmery import __version__, buildinfo, core
+from dimmery.scroll import ScrollWatcher
 
 
 def is_dark_theme() -> bool:
@@ -106,16 +107,18 @@ class AboutDialog(QDialog):
         lay.addWidget(close, alignment=Qt.AlignmentFlag.AlignRight)
 
 
-class TickWorker(QThread):
+class Worker(QThread):
+    """Runs ``fn`` (a ddcutil-touching call) off the UI thread; always emits an event, errors included."""
+
     done = pyqtSignal(dict)
 
-    def __init__(self, cfg, state_dir, dry_run):
+    def __init__(self, fn, state_dir):
         super().__init__()
-        self.cfg, self.state_dir, self.dry_run = cfg, state_dir, dry_run
+        self.fn, self.state_dir = fn, state_dir
 
     def run(self):
         try:
-            self.done.emit(core.tick(self.cfg, self.state_dir, self.dry_run))
+            self.done.emit(self.fn())
         except Exception as e:  # ddcutil missing, monitor off, ...
             now = datetime.now().isoformat(timespec="seconds")
             ev = {"action": "error", "error": str(e)[:200], "ts": now}
@@ -174,6 +177,13 @@ class App:
     def __init__(self, cfg, state_dir, dry_run):
         self.cfg, self.state_dir, self.dry_run = cfg, state_dir, dry_run
         self.paused, self.worker, self.restart_requested = False, None, False
+        self.scroll_steps = 0
+        self.scroll_timer = QTimer()
+        self.scroll_timer.setSingleShot(True)
+        self.scroll_timer.setInterval(350)
+        self.scroll_timer.timeout.connect(self.apply_scroll)
+        self.scroll = ScrollWatcher()
+        self.scroll.scrolled.connect(self.on_scroll)
         self.win = Window(cfg, state_dir)
         self.win.tick_btn.clicked.connect(lambda: self.tick())
         self.win.pause_btn.clicked.connect(self.toggle_pause)
@@ -235,9 +245,26 @@ class App:
         if (self.paused and scheduled) or (self.worker and self.worker.isRunning()):
             return
         self.set_status("working...")
-        self.worker = TickWorker(self.cfg, self.state_dir, self.dry_run)
+        self.run_worker(lambda: core.tick(self.cfg, self.state_dir, self.dry_run))
+
+    def run_worker(self, fn):
+        self.worker = Worker(fn, self.state_dir)
         self.worker.done.connect(self.on_done)
         self.worker.start()
+
+    def on_scroll(self, step):
+        self.scroll_steps += step
+        self.set_status(f"scroll {self.scroll_steps:+d} step(s)...")
+        self.scroll_timer.start()  # debounce: wait for the wheel to stop
+
+    def apply_scroll(self):
+        if self.worker and self.worker.isRunning():
+            self.scroll_timer.start()
+            return
+        steps, self.scroll_steps = self.scroll_steps, 0
+        if steps:
+            self.set_status("adjusting...")
+            self.run_worker(lambda: core.nudge(self.cfg, self.state_dir, steps, self.dry_run))
 
     def on_done(self, ev):
         if ev["action"] == "error":
@@ -251,8 +278,10 @@ def run(cfg, state_dir: Path, dry_run=False):
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     ui = App(cfg, state_dir, dry_run)
+    app.aboutToQuit.connect(ui.scroll.stop)
     if QSystemTrayIcon.isSystemTrayAvailable():
         ui.tray.show()
+        ui.scroll.start()
     else:
         ui.win.show()  # no tray (e.g. headless): fall back to the window
     QTimer.singleShot(1000, lambda: ui.tick())

@@ -41,6 +41,12 @@ class T(unittest.TestCase):
     def test_nearest_slot_wraps_midnight(self):
         self.assertEqual(lookup({"47": 30, "20": 90}, 1, 48), 30)   # slot 1 is 2 away from 47, 19 from 20
 
+    def test_empty_slot_learns_value_as_is_not_blended_with_neighbour(self):
+        s = {"table": {"mon": {"1": 8}}, "last": 8}        # only a far-away slot is known
+        s, ev = step(s, MON, 70, CFG)
+        self.assertEqual((ev["action"], ev["old"], ev["new"]), ("learn", None, 70))
+        self.assertEqual(s["table"]["mon"]["20"], 70)
+
     def test_empty_day_borrows_from_other_days(self):
         s = {"table": {"mon": {"20": 40}, "tue": {"20": 60}}, "last": 70}
         s, ev = step(s, SAT, 70, CFG)                      # saturday has nothing yet

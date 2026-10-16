@@ -77,7 +77,7 @@ def step(state: State, now: datetime, current: int, cfg: Config) -> tuple[State,
     ev: Event = {"ts": now.isoformat(timespec="seconds"), "daytype": day, "slot": slot, "read": current}
 
     if last is not None and abs(current - last) > cfg["tolerance"]:
-        old = lookup(table, slot, n_slots)
+        old = table.get(str(slot))  # blend only with this slot's own history, never a distant neighbour
         new = current if old is None else round(old + cfg["alpha"] * (current - old))
         table[str(slot)] = max(cfg["min"], min(cfg["max"], new))
         state["last"] = current

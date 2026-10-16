@@ -13,7 +13,9 @@ Every decision is appended to ``events.jsonl``.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
+import time
 import tomllib
 from datetime import datetime
 from pathlib import Path
@@ -32,6 +34,7 @@ DEFAULTS: Config = {
     "alpha": 0.5,
     "tolerance": 2,
     "scroll_step": 5,
+    "plasma": True,
     "min": 0,
     "max": 100,
 }
@@ -107,6 +110,72 @@ def ddc(cfg: Config, *args: str) -> str:
     return subprocess.run(["ddcutil", *target, *args], capture_output=True, text=True, check=True).stdout
 
 
+# --- Plasma (PowerDevil) ----------------------------------------------------------------------
+# Writing through PowerDevil keeps Plasma's slider, tooltip and OSD in sync with the real value; writing
+# straight through ddcutil would leave Plasma showing a stale percentage.
+
+PD_SERVICE = "org.kde.ScreenBrightness"
+PD_ROOT = "/org/kde/ScreenBrightness"
+PD_DISPLAY = "org.kde.ScreenBrightness.Display"
+SUPPRESS_INDICATOR = 1  # SetBrightness flag: do not pop up Plasma's OSD
+
+
+def _busctl(*args: str) -> str:
+    run = subprocess.run(["busctl", "--user", *args], capture_output=True, text=True, check=True, timeout=5)
+    return run.stdout
+
+
+def plasma_display() -> str | None:
+    """Object path of the first external display PowerDevil controls, or None."""
+    try:
+        listing = _busctl("get-property", PD_SERVICE, PD_ROOT, PD_SERVICE, "DisplaysDBusNames")
+        names = re.findall(r'"([^"]+)"', listing)
+        for name in names:
+            path = f"{PD_ROOT}/{name}"
+            if _busctl("get-property", PD_SERVICE, path, PD_DISPLAY, "IsInternal").split()[-1] == "false":
+                return path
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return None
+
+
+def plasma_set(cfg: Config, percent: int, show_osd: bool = True) -> bool:
+    """Set the brightness through PowerDevil. False means "not possible, use ddcutil"."""
+    if not cfg["plasma"]:
+        return False
+    path = plasma_display()
+    if path is None:
+        return False
+    try:
+        top = int(_busctl("get-property", PD_SERVICE, path, PD_DISPLAY, "MaxBrightness").split()[-1])
+        _busctl("call", PD_SERVICE, path, PD_DISPLAY, "SetBrightness", "iu",
+                str(round(percent * top / 100)), "0" if show_osd else str(SUPPRESS_INDICATOR))
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return False
+    return True
+
+
+def plasma_percent(path: str) -> int | None:
+    """The percentage Plasma itself shows for this display (cheap: no DDC/CI traffic)."""
+    try:
+        value, top = (int(_busctl("get-property", PD_SERVICE, path, PD_DISPLAY, p).split()[-1])
+                      for p in ("Brightness", "MaxBrightness"))
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return round(100 * value / top) if top else None
+
+
+def set_brightness(cfg: Config, percent: int, show_osd: bool = False) -> None:
+    """Write ``percent``: via Plasma when possible (then wait until the monitor reports it), else ddcutil."""
+    if plasma_set(cfg, percent, show_osd):
+        for _ in range(3):
+            time.sleep(0.8)
+            if abs(read_brightness(cfg) - percent) <= cfg["tolerance"]:
+                return
+        return
+    ddc(cfg, "setvcp", "10", str(percent))
+
+
 def read_brightness(cfg: Config) -> int:
     return int(ddc(cfg, "getvcp", "10", "--brief").split()[3])  # "VCP 10 C <current> <max>"
 
@@ -143,7 +212,7 @@ def tick(cfg: Config, state_dir: Path = STATE_DIR, dry_run: bool = False) -> Eve
     state_dir.mkdir(parents=True, exist_ok=True)
     state, ev = step(load_state(state_dir), datetime.now().astimezone(), read_brightness(cfg), cfg)
     if ev["action"] == "apply" and not dry_run:
-        ddc(cfg, "setvcp", "10", str(ev["target"]))
+        set_brightness(cfg, ev["target"])
     ev["dry_run"] = dry_run
     (state_dir / "state.json").write_text(json.dumps(state))
     log_event(state_dir, ev)
@@ -157,5 +226,5 @@ def nudge(cfg: Config, state_dir: Path = STATE_DIR, steps: int = 0, dry_run: boo
     log_event(state_dir, {"ts": datetime.now().astimezone().isoformat(timespec="seconds"), "action": "scroll",
                           "read": current, "target": target, "dry_run": dry_run})
     if target != current and not dry_run:
-        ddc(cfg, "setvcp", "10", str(target))
+        set_brightness(cfg, target, show_osd=True)
     return tick(cfg, state_dir, dry_run)

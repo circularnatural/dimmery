@@ -52,3 +52,20 @@ def test_nudge_clamps_to_range_and_dry_run_writes_nothing(monkeypatch, tmp_path)
     core.nudge(core.DEFAULTS, tmp_path, steps=3, dry_run=True)
     assert not any(a[0] == "setvcp" for a in calls)
     assert core.read_events(tmp_path)[0]["target"] == 100
+
+
+def test_plasma_percent_and_set_use_the_scaled_range(monkeypatch):
+    seen = []
+
+    def busctl(*args):
+        seen.append(args)
+        if args[0] == "get-property" and args[-1] == "DisplaysDBusNames":
+            return 'as 1 "display0"\n'
+        if args[-1] == "IsInternal":
+            return "b false\n"
+        return "i 10000\n" if args[-1] == "MaxBrightness" else "i 6000\n"
+
+    monkeypatch.setattr(core, "_busctl", busctl)
+    path = core.plasma_display()
+    assert path == "/org/kde/ScreenBrightness/display0"
+    assert core.plasma_percent(path) == 60

@@ -177,7 +177,8 @@ class App:
     def __init__(self, cfg, state_dir, dry_run):
         self.cfg, self.state_dir, self.dry_run = cfg, state_dir, dry_run
         self.paused, self.worker, self.restart_requested = False, None, False
-        self.scroll_steps = 0
+        self.scroll_delta = 0
+        self.status_text, self.plasma_path = "starting...", None
         self.scroll_timer = QTimer()
         self.scroll_timer.setSingleShot(True)
         self.scroll_timer.setInterval(350)
@@ -210,6 +211,9 @@ class App:
         hints = QGuiApplication.styleHints()
         if hints is not None and hasattr(hints, "colorSchemeChanged"):
             hints.colorSchemeChanged.connect(lambda *_: self.refresh_icon())
+        self.tooltip_timer = QTimer()
+        self.tooltip_timer.timeout.connect(self.update_tooltip)
+        self.tooltip_timer.start(5000)
         self.timer = QTimer()
         self.timer.timeout.connect(lambda: self.tick(scheduled=True))
         self.timer.start(int(cfg["interval_minutes"]) * 60_000)
@@ -238,8 +242,17 @@ class App:
         self.set_status("paused" if self.paused else "resumed")
 
     def set_status(self, text):
+        self.status_text = text
         self.win.status.setText(text)
-        self.tray.setToolTip(f"Dimmery: {text}")
+        self.update_tooltip()
+
+    def update_tooltip(self):
+        """Tooltip leads with the brightness Plasma reports, like KDE's own brightness widget."""
+        if self.plasma_path is None:
+            self.plasma_path = core.plasma_display()
+        level = core.plasma_percent(self.plasma_path) if self.plasma_path else None
+        head = "Dimmery" if level is None else f"Dimmery: screen brightness at {level}%"
+        self.tray.setToolTip(f"{head}\n{self.status_text}")
 
     def tick(self, scheduled=False):
         if (self.paused and scheduled) or (self.worker and self.worker.isRunning()):
@@ -252,16 +265,16 @@ class App:
         self.worker.done.connect(self.on_done)
         self.worker.start()
 
-    def on_scroll(self, step):
-        self.scroll_steps += step
-        self.set_status(f"scroll {self.scroll_steps:+d} step(s)...")
+    def on_scroll(self, delta):
+        self.scroll_delta += delta  # hi-res wheels send many small deltas per notch (120 = one notch)
         self.scroll_timer.start()  # debounce: wait for the wheel to stop
 
     def apply_scroll(self):
         if self.worker and self.worker.isRunning():
             self.scroll_timer.start()
             return
-        steps, self.scroll_steps = self.scroll_steps, 0
+        delta, self.scroll_delta = self.scroll_delta, 0
+        steps = round(delta / 120) or (1 if delta > 0 else -1 if delta < 0 else 0)
         if steps:
             self.set_status("adjusting...")
             self.run_worker(lambda: core.nudge(self.cfg, self.state_dir, steps, self.dry_run))

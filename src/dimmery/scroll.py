@@ -41,7 +41,7 @@ class ScrollParser:
 
 
 class ScrollWatcher(QObject):
-    scrolled = pyqtSignal(int)  # +1 per notch up, -1 per notch down
+    scrolled = pyqtSignal(int)  # raw wheel delta: +-120 per notch, smaller steps on hi-res wheels
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -68,4 +68,4 @@ class ScrollWatcher(QObject):
         for line in lines:
             hit = self._parser.feed(line)
             if hit and hit[2] == "vertical" and hit[1] and self._is_ours(hit[0]):
-                self.scrolled.emit(1 if hit[1] > 0 else -1)
+                self.scrolled.emit(hit[1])

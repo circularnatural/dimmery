@@ -42,8 +42,9 @@ dimmery gui                        # tray icon + window; runs the ticks itself
 
 ## Status
 
-Early. Unit-tested, and a real read plus `--dry-run` tick were validated on an Acer XV325QK V3. Real writes
-(`apply`), the tray under KDE and long unattended runs are not validated yet.
+Early, in daily use on one machine (Acer XV325QK V3 over DisplayPort, KDE Plasma on Wayland). Validated live:
+reading, writing (`apply`), learning a manual change and the tray icon. Not validated yet: long unattended
+runs, autostart after a reboot, and learning from changes made on the monitor's own OSD.
 
 ## Limits
 

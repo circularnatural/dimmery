@@ -1,0 +1,6 @@
+[Unit]
+Description=Adjust external monitor brightness from learned schedule
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/dimmery tick

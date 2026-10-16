@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dimmery"
+dynamic = ["version"]
+description = "Brightness that learns your habits for a DDC/CI external monitor"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    {name = "circularnatural"}
+]
+keywords = ["brightness", "ddc", "ddcutil", "monitor", "linux"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+]
+
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/circularnatural/dimmery"
+
+[project.optional-dependencies]
+gui = ["PyQt6>=6.5"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-xdist>=3.0",
+    "ruff>=0.1.0",
+    "basedpyright>=1.0",
+    "build>=1.0",
+    
+    
+    
+    
+]
+
+[project.scripts]
+dimmery = "dimmery.main:main"
+
+
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short --import-mode=importlib -n auto"
+
+[tool.basedpyright]
+include = ["src", "tests"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 0

@@ -8,11 +8,12 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtCore import QPointF, Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QT_VERSION_STR, QPointF, Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QGuiApplication, QIcon, QPainter, QPalette, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDialog,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -24,7 +25,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from dimmery import core
+from dimmery import __version__, core
 
 
 def is_dark_theme() -> bool:
@@ -75,6 +76,35 @@ def make_icon(paused: bool = False) -> QIcon:
     return icon
 
 
+REPO_URL = "https://github.com/circularnatural/dimmery"
+
+
+class AboutDialog(QDialog):
+    def __init__(self, state_dir, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("About Dimmery")
+        logo = QLabel()
+        logo.setPixmap(make_icon().pixmap(96, 96))
+        text = QLabel(
+            f"<h2>Dimmery</h2>"
+            f"<p>Version {__version__}</p>"
+            "<p>Brightness that learns your habits for an external monitor over DDC/CI.<br>"
+            "You adjust it; dimmery remembers it per weekday and time slot, and brings it back.</p>"
+            f'<p><a href="{REPO_URL}">{REPO_URL}</a><br>MIT License \u00b7 circularnatural</p>'
+            f"<p><small>Qt {QT_VERSION_STR}<br>State: {state_dir}</small></p>"
+        )
+        text.setOpenExternalLinks(True)
+        text.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        close = QPushButton("Close")
+        close.clicked.connect(self.accept)
+        row = QHBoxLayout()
+        row.addWidget(logo, alignment=Qt.AlignmentFlag.AlignTop)
+        row.addWidget(text, stretch=1)
+        lay = QVBoxLayout(self)
+        lay.addLayout(row)
+        lay.addWidget(close, alignment=Qt.AlignmentFlag.AlignRight)
+
+
 class TickWorker(QThread):
     done = pyqtSignal(dict)
 
@@ -108,12 +138,14 @@ class Window(QWidget):
         self.log.setMaximumHeight(130)
         self.tick_btn = QPushButton("Tick now")
         self.pause_btn = QPushButton("Pause")
+        self.about_btn = QPushButton("About")
         row = QHBoxLayout()
         row.addWidget(QLabel("Learned table:"))
         row.addWidget(self.day)
         row.addStretch()
         row.addWidget(self.tick_btn)
         row.addWidget(self.pause_btn)
+        row.addWidget(self.about_btn)
         lay = QVBoxLayout(self)
         lay.addWidget(self.status)
         lay.addLayout(row)
@@ -144,12 +176,19 @@ class App:
         self.win = Window(cfg, state_dir)
         self.win.tick_btn.clicked.connect(lambda: self.tick())
         self.win.pause_btn.clicked.connect(self.toggle_pause)
+        self.win.about_btn.clicked.connect(self.show_about)
         self.tray = QSystemTrayIcon(make_icon())
         self.win.setWindowIcon(make_icon())
         self.tray.setToolTip("Dimmery")
         menu = QMenu()
-        for label, fn in (("Open", self.win.show), ("Tick now", lambda: self.tick()),
-                          ("Pause / Resume", self.toggle_pause), ("Quit", QApplication.quit)):
+        entries = (
+            ("Open", self.win.show),
+            ("Tick now", lambda: self.tick()),
+            ("Pause / Resume", self.toggle_pause),
+            ("About", self.show_about),
+            ("Quit", QApplication.quit),
+        )
+        for label, fn in entries:
             act = QAction(label, menu)
             act.triggered.connect(fn)
             menu.addAction(act)
@@ -166,6 +205,9 @@ class App:
     def on_tray_click(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self.win.show()
+
+    def show_about(self):
+        AboutDialog(self.state_dir, self.win).exec()
 
     def refresh_icon(self):
         icon = make_icon(self.paused)

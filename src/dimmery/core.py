@@ -168,16 +168,26 @@ def plasma_percent(path: str) -> int | None:
 def set_brightness(cfg: Config, percent: int, show_osd: bool = False) -> None:
     """Write ``percent``: via Plasma when possible (then wait until the monitor reports it), else ddcutil."""
     if plasma_set(cfg, percent, show_osd):
-        for _ in range(3):
+        for _ in range(3):  # best effort: the write itself already went through PowerDevil
             time.sleep(0.8)
-            if abs(read_brightness(cfg) - percent) <= cfg["tolerance"]:
-                return
+            try:
+                if abs(read_brightness(cfg) - percent) <= cfg["tolerance"]:
+                    return
+            except (RuntimeError, subprocess.SubprocessError):
+                continue
         return
     ddc(cfg, "setvcp", "10", str(percent))
 
 
+_VCP_10 = re.compile(r"VCP\s+10\s+C\s+(\d+)\s+(\d+)")  # "VCP 10 C <current> <max>"
+
+
 def read_brightness(cfg: Config) -> int:
-    return int(ddc(cfg, "getvcp", "10", "--brief").split()[3])  # "VCP 10 C <current> <max>"
+    out = ddc(cfg, "getvcp", "10", "--brief")
+    match = _VCP_10.search(out)
+    if match is None:  # e.g. the monitor is still waking up: report what ddcutil printed
+        raise RuntimeError(f"unexpected ddcutil output: {out.strip()[:120]!r}")
+    return int(match.group(1))
 
 
 # --- config, state and log --------------------------------------------------------------------

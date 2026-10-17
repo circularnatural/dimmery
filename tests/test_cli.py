@@ -41,3 +41,18 @@ def test_show_prints_state(monkeypatch, tmp_path, capsys):
     core.tick(core.DEFAULTS, tmp_path)
     assert main.main(["show", "--state-dir", str(tmp_path)]) == 0
     assert "table" in capsys.readouterr().out
+
+
+def test_read_brightness_reports_unexpected_output(monkeypatch):
+    import pytest
+
+    monkeypatch.setattr(core, "ddc", lambda cfg, *a: "Display is busy, wait and retry\n")
+    with pytest.raises(RuntimeError, match="unexpected ddcutil output"):
+        core.read_brightness(core.DEFAULTS)
+
+
+def test_set_brightness_survives_a_garbled_confirmation_read(monkeypatch):
+    monkeypatch.setattr(core, "plasma_set", lambda *a, **k: True)  # write "succeeds" through Plasma
+    monkeypatch.setattr(core.time, "sleep", lambda s: None)
+    monkeypatch.setattr(core, "ddc", lambda cfg, *a: "wait\n")
+    core.set_brightness(core.DEFAULTS, 40)  # must not raise

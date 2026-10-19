@@ -13,3 +13,4 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 - 16/10/2026 -> Mouse wheel over the tray icon adjusts the brightness (`scroll_step`, learned immediately).
 - 16/10/2026 -> Writes go through Plasma (PowerDevil) so its slider, tooltip and OSD stay in sync; the tray tooltip shows the brightness Plasma reports; hi-res wheels count 120 per notch. Falls back to ddcutil (`plasma = false` forces it).
 - 17/10/2026 -> Reading the brightness validates ddcutil output (clear error instead of a bare ValueError) and the post-write confirmation is best effort.
+- 18/10/2026 -> Unreachable monitor is logged once as `offline` (and `recovered`), not as an error every tick; all events carry a UTC offset; the dbus-monitor child dies with the app (SIGTERM handler + pdeathsig); `dimmery scroll-test` and `scroll_notch` calibrate the wheel, gestures are logged as `scroll_input`.

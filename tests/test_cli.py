@@ -56,3 +56,27 @@ def test_set_brightness_survives_a_garbled_confirmation_read(monkeypatch):
     monkeypatch.setattr(core.time, "sleep", lambda s: None)
     monkeypatch.setattr(core, "ddc", lambda cfg, *a: "wait\n")
     core.set_brightness(core.DEFAULTS, 40)  # must not raise
+
+
+def test_offline_is_logged_once_and_recovery_is_marked(monkeypatch, tmp_path):
+    import subprocess
+
+    def down(cfg, *args):
+        raise subprocess.CalledProcessError(1, "ddcutil", stderr="Display not found\nmore")
+
+    monkeypatch.setattr(core, "ddc", down)
+    first = core.tick(core.DEFAULTS, tmp_path)
+    core.tick(core.DEFAULTS, tmp_path)
+    core.tick(core.DEFAULTS, tmp_path)
+    assert first["action"] == "offline" and first["reason"] == "Display not found"
+    assert [e["action"] for e in core.read_events(tmp_path)] == ["offline"]  # three ticks, one log line
+    fake_ddc(monkeypatch, 40)
+    back = core.tick(core.DEFAULTS, tmp_path)
+    assert back.get("recovered") is True
+    assert "offline" not in core.load_state(tmp_path)
+
+
+def test_every_event_timestamp_carries_a_utc_offset():
+    from datetime import datetime
+
+    assert datetime.fromisoformat(core.now_iso()).utcoffset() is not None

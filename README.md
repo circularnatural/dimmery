@@ -35,6 +35,13 @@ In the tray, spin the mouse wheel over the icon to nudge the brightness (`scroll
 the change is learned right away like any manual adjustment. This relies on `dbus-monitor` (package
 `dbus-bin`), because Qt does not expose the wheel event of a tray icon.
 
+If one notch moves more or less than `scroll_step`, run `dimmery scroll-test`, spin one notch over the icon and
+set `scroll_notch` (the wheel delta of a single notch, 120 by default) in `config.toml`. Every wheel gesture is also
+logged as `scroll_input` with its raw delta.
+
+A monitor that does not answer (off, asleep) is logged once as `offline` and marked `recovered` on the first good
+tick, instead of one error every 30 minutes.
+
 `contrib/systemd/` has user units to run `dimmery tick` from a timer instead of the tray.
 
 ## State and config
@@ -42,7 +49,7 @@ the change is learned right away like any manual adjustment. This relies on `dbu
 - `~/.local/state/dimmery/state.json`: learned table.
 - `~/.local/state/dimmery/events.jsonl`: append-only log of every decision (read, learn, apply, error).
 - `~/.config/dimmery/config.toml` (optional): `display`, `serial`, `slot_minutes`, `alpha`, `tolerance`,
-  `min`, `max`, `interval_minutes`, `scroll_step`.
+  `min`, `max`, `interval_minutes`, `scroll_step`, `scroll_notch`, `plasma`.
 
 ## Status
 

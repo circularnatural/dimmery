@@ -34,12 +34,18 @@ DEFAULTS: Config = {
     "alpha": 0.5,
     "tolerance": 2,
     "scroll_step": 5,
+    "scroll_notch": 120,
     "plasma": True,
     "min": 0,
     "max": 100,
 }
 CONFIG_PATH = Path.home() / ".config/dimmery/config.toml"
 STATE_DIR = Path.home() / ".local/state/dimmery"
+
+
+def now_iso() -> str:
+    """Local time with its UTC offset, e.g. 2026-10-18T21:30:00-03:00 (every logged event uses this)."""
+    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 # --- pure logic -------------------------------------------------------------------------------
@@ -217,10 +223,37 @@ def read_events(state_dir: Path = STATE_DIR, n: int = 20) -> list[Event]:
     return [json.loads(line) for line in path.read_text().splitlines()[-n:]]
 
 
+UNREACHABLE = (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError)
+
+
+def _why(error: Exception) -> str:
+    """One line saying why ddcutil failed (its own message when it has one)."""
+    text = (getattr(error, "stderr", "") or getattr(error, "stdout", "") or str(error)).strip()
+    return (text.splitlines() or [str(error)])[0][:160]
+
+
 def tick(cfg: Config, state_dir: Path = STATE_DIR, dry_run: bool = False) -> Event:
-    """Read the monitor, decide, apply, persist and log. Returns the event."""
+    """Read the monitor, decide, apply, persist and log. Returns the event.
+
+    A monitor that does not answer (off, asleep, cable) is not an error: it yields an ``offline`` event,
+    logged once when it starts, and the first good tick after it is marked ``recovered``.
+    """
     state_dir.mkdir(parents=True, exist_ok=True)
-    state, ev = step(load_state(state_dir), datetime.now().astimezone(), read_brightness(cfg), cfg)
+    state = load_state(state_dir)
+    try:
+        current = read_brightness(cfg)
+    except UNREACHABLE as e:
+        first = not state.get("offline")
+        state["offline"] = True
+        (state_dir / "state.json").write_text(json.dumps(state))
+        ev: Event = {"ts": now_iso(), "action": "offline", "reason": _why(e), "dry_run": dry_run}
+        if first:
+            log_event(state_dir, ev)
+        return ev
+    recovered = state.pop("offline", False)
+    state, ev = step(state, datetime.now().astimezone(), current, cfg)
+    if recovered:
+        ev["recovered"] = True
     if ev["action"] == "apply" and not dry_run:
         set_brightness(cfg, ev["target"])
     ev["dry_run"] = dry_run
@@ -233,8 +266,8 @@ def nudge(cfg: Config, state_dir: Path = STATE_DIR, steps: int = 0, dry_run: boo
     """Move the brightness by ``steps`` * scroll_step, then tick so the change is learned right away."""
     current = read_brightness(cfg)
     target = max(cfg["min"], min(cfg["max"], current + steps * cfg["scroll_step"]))
-    log_event(state_dir, {"ts": datetime.now().astimezone().isoformat(timespec="seconds"), "action": "scroll",
-                          "read": current, "target": target, "dry_run": dry_run})
+    log_event(state_dir, {"ts": now_iso(), "action": "scroll", "read": current, "target": target,
+                          "dry_run": dry_run})
     if target != current and not dry_run:
         set_brightness(cfg, target, show_osd=True)
     return tick(cfg, state_dir, dry_run)

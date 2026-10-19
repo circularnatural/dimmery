@@ -5,6 +5,7 @@ The tray app runs the tick itself every `interval_minutes`; ddcutil calls take
 """
 import json
 import os
+import signal
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -120,8 +121,7 @@ class Worker(QThread):
         try:
             self.done.emit(self.fn())
         except Exception as e:  # ddcutil missing, monitor off, ...
-            now = datetime.now().isoformat(timespec="seconds")
-            ev = {"action": "error", "error": str(e)[:200], "ts": now}
+            ev = {"action": "error", "error": str(e)[:200], "ts": core.now_iso()}
             core.log_event(self.state_dir, ev)
             self.done.emit(ev)
 
@@ -274,14 +274,19 @@ class App:
             self.scroll_timer.start()
             return
         delta, self.scroll_delta = self.scroll_delta, 0
-        steps = round(delta / 120) or (1 if delta > 0 else -1 if delta < 0 else 0)
+        notch = self.cfg["scroll_notch"]
+        steps = round(delta / notch) or (1 if delta > 0 else -1 if delta < 0 else 0)
         if steps:
+            core.log_event(self.state_dir, {"ts": core.now_iso(), "action": "scroll_input", "delta": delta,
+                                            "notch": notch, "steps": steps})
             self.set_status("adjusting...")
             self.run_worker(lambda: core.nudge(self.cfg, self.state_dir, steps, self.dry_run))
 
     def on_done(self, ev):
         if ev["action"] == "error":
             self.set_status(f"error: {ev['error']}")
+        elif ev["action"] == "offline":
+            self.set_status("monitor not answering (off or asleep?)")
         else:
             self.set_status(f"{ev['read']}% | {ev['daytype']} slot {ev['slot']} | {ev['action']}")
         self.win.refresh()
@@ -290,6 +295,11 @@ class App:
 def run(cfg, state_dir: Path, dry_run=False):
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+    for sig in (signal.SIGTERM, signal.SIGINT):  # quit cleanly so aboutToQuit stops the dbus-monitor child
+        signal.signal(sig, lambda *_: app.quit())
+    pump = QTimer()  # lets the Python-level signal handlers run while Qt owns the event loop
+    pump.timeout.connect(lambda: None)
+    pump.start(500)
     ui = App(cfg, state_dir, dry_run)
     app.aboutToQuit.connect(ui.scroll.stop)
     if QSystemTrayIcon.isSystemTrayAvailable():

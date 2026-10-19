@@ -1,5 +1,5 @@
 from dimmery import core
-from dimmery.scroll import ScrollParser
+from dimmery.dbusscroll import ScrollParser
 
 CALL = (
     "method call time=1.5 sender=:1.921 -> destination=:1.910 serial=2 path=/StatusNotifierItem; "

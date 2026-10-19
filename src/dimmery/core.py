@@ -31,7 +31,7 @@ DEFAULTS: Config = {
     "serial": "",
     "slot_minutes": 30,
     "interval_minutes": 30,
-    "alpha": 0.5,
+    "alpha": 0.7,
     "tolerance": 2,
     "scroll_step": 5,
     "scroll_notch": 120,
@@ -68,13 +68,18 @@ def pooled(tables: dict[str, dict[str, int]]) -> dict[str, int]:
 
 
 def lookup(table: dict[str, int], slot: int, n_slots: int) -> int | None:
-    """Value for ``slot``, else the nearest known slot on the 24h circle, else None."""
+    """Value for ``slot``: its own, else a linear blend of the previous and next known slots (on the 24h
+    circle), else None when nothing is known."""
     if str(slot) in table:
         return table[str(slot)]
     if not table:
         return None
-    nearest = min((int(k) for k in table), key=lambda k: min((k - slot) % n_slots, (slot - k) % n_slots))
-    return table[str(nearest)]
+    known = sorted(int(k) for k in table)
+    back = min(known, key=lambda k: (slot - k) % n_slots)  # closest known slot before
+    ahead = min(known, key=lambda k: (k - slot) % n_slots)  # closest known slot after
+    d_back, d_ahead = (slot - back) % n_slots, (ahead - slot) % n_slots
+    low, high = table[str(back)], table[str(ahead)]
+    return round(low + (high - low) * d_back / (d_back + d_ahead))
 
 
 def step(state: State, now: datetime, current: int, cfg: Config) -> tuple[State, Event]:
@@ -263,11 +268,12 @@ def tick(cfg: Config, state_dir: Path = STATE_DIR, dry_run: bool = False) -> Eve
 
 
 def nudge(cfg: Config, state_dir: Path = STATE_DIR, steps: int = 0, dry_run: bool = False) -> Event:
-    """Move the brightness by ``steps`` * scroll_step, then tick so the change is learned right away."""
+    """Move the brightness by ``steps`` * scroll_step. Learning happens later, once the wheel has settled
+    (a plain ``tick`` sees the change as a manual adjustment), so a burst of notches teaches one value."""
     current = read_brightness(cfg)
     target = max(cfg["min"], min(cfg["max"], current + steps * cfg["scroll_step"]))
-    log_event(state_dir, {"ts": now_iso(), "action": "scroll", "read": current, "target": target,
-                          "dry_run": dry_run})
+    ev: Event = {"ts": now_iso(), "action": "scroll", "read": current, "target": target, "dry_run": dry_run}
+    log_event(state_dir, ev)
     if target != current and not dry_run:
         set_brightness(cfg, target, show_osd=True)
-    return tick(cfg, state_dir, dry_run)
+    return ev

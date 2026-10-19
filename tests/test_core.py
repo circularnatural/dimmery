@@ -28,7 +28,7 @@ class T(unittest.TestCase):
         s = {"table": {"mon": {"20": 40}}, "last": 40}
         s, ev = step(s, MON, 80, CFG)                      # user moved 40 -> 80
         self.assertEqual(ev["action"], "learn")
-        self.assertEqual(s["table"]["mon"]["20"], 60)
+        self.assertEqual(s["table"]["mon"]["20"], 68)
         self.assertEqual(s["last"], 80)                    # screen untouched this tick
 
     def test_learning_one_day_leaves_others_alone(self):
@@ -38,8 +38,15 @@ class T(unittest.TestCase):
         self.assertEqual(s["table"]["sat"]["20"], 90)      # first lesson for that day: take it as is
         self.assertEqual(s["table"]["mon"]["20"], 40)
 
-    def test_nearest_slot_wraps_midnight(self):
-        self.assertEqual(lookup({"47": 30, "20": 90}, 1, 48), 30)   # slot 1 is 2 away from 47, 19 from 20
+    def test_empty_slot_interpolates_between_neighbours_across_midnight(self):
+        # slot 1 sits 2 slots after 47 (30) and 19 before 20 (90): 30 + 60 * 2/21
+        self.assertEqual(lookup({"47": 30, "20": 90}, 1, 48), 36)
+
+    def test_empty_slot_midway_gets_the_midpoint(self):
+        self.assertEqual(lookup({"10": 20, "30": 60}, 20, 48), 40)
+
+    def test_single_known_slot_is_used_everywhere(self):
+        self.assertEqual(lookup({"10": 20}, 33, 48), 20)
 
     def test_empty_slot_learns_value_as_is_not_blended_with_neighbour(self):
         s = {"table": {"mon": {"1": 8}}, "last": 8}        # only a far-away slot is known

@@ -79,6 +79,7 @@ def make_icon(paused: bool = False) -> QIcon:
     return icon
 
 
+LEARN_AFTER_MS = 10_000
 REPO_URL = "https://github.com/circularnatural/dimmery"
 
 
@@ -183,6 +184,10 @@ class App:
         self.scroll_timer.setSingleShot(True)
         self.scroll_timer.setInterval(350)
         self.scroll_timer.timeout.connect(self.apply_scroll)
+        self.learn_timer = QTimer()  # learn the brightness once the wheel has been quiet for a while
+        self.learn_timer.setSingleShot(True)
+        self.learn_timer.setInterval(LEARN_AFTER_MS)
+        self.learn_timer.timeout.connect(self.learn_settled)
         self.scroll = ScrollWatcher()
         self.scroll.scrolled.connect(self.on_scroll)
         self.win = Window(cfg, state_dir)
@@ -268,6 +273,13 @@ class App:
     def on_scroll(self, delta):
         self.scroll_delta += delta  # hi-res wheels send many small deltas per notch (120 = one notch)
         self.scroll_timer.start()  # debounce: wait for the wheel to stop
+        self.learn_timer.start()   # and do not learn anything until it has been quiet for a while
+
+    def learn_settled(self):
+        if self.worker and self.worker.isRunning():
+            self.learn_timer.start()
+            return
+        self.tick()  # the settled value differs from the last applied one, so this tick learns it
 
     def apply_scroll(self):
         if self.worker and self.worker.isRunning():
@@ -285,6 +297,8 @@ class App:
     def on_done(self, ev):
         if ev["action"] == "error":
             self.set_status(f"error: {ev['error']}")
+        elif ev["action"] == "scroll":
+            self.set_status(f"brightness {ev['target']}% (will be learned when you stop)")
         elif ev["action"] == "offline":
             self.set_status("monitor not answering (off or asleep?)")
         else:

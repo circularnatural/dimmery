@@ -36,14 +36,17 @@ def fake_ddc(monkeypatch, brightness):
     return calls
 
 
-def test_nudge_moves_by_step_and_learns_it(monkeypatch, tmp_path):
+def test_nudge_moves_by_step_and_a_later_tick_learns_the_settled_value(monkeypatch, tmp_path):
     level = [40]
     calls = fake_ddc(monkeypatch, level)
     core.tick(core.DEFAULTS, tmp_path)                  # seed: remembers 40
-    ev = core.nudge(core.DEFAULTS, tmp_path, steps=2)   # wheel up two notches -> 50
-    assert ("setvcp", "10", "50") in [tuple(a) for a in calls]
-    assert ev["action"] == "learn" and ev["new"] == 45  # blended with the remembered 40 (alpha 0.5)
-    assert level[0] == 50
+    core.nudge(core.DEFAULTS, tmp_path, steps=1)        # +5 -> 45
+    ev = core.nudge(core.DEFAULTS, tmp_path, steps=1)   # +5 -> 50 (a burst of notches)
+    assert ev["action"] == "scroll" and ev["target"] == 50
+    assert [tuple(a) for a in calls].count(("setvcp", "10", "45")) == 1 and level[0] == 50
+    learned = core.tick(core.DEFAULTS, tmp_path)        # the quiet-period tick: one lesson, the final value
+    assert learned["action"] == "learn" and learned["read"] == 50
+    assert learned["new"] == 47                         # 40 + 0.7 * (50 - 40)
 
 
 def test_nudge_clamps_to_range_and_dry_run_writes_nothing(monkeypatch, tmp_path):

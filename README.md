@@ -9,10 +9,13 @@ Every tick (default: 30 min) dimmery reads the monitor brightness through `ddcut
 
 - if it differs from what dimmery last applied, you changed it: it learns the value for the current
   weekday (mon-sun) and slot, and leaves the screen alone;
-- otherwise it applies the value remembered for this slot (or the nearest known slot; a day with no
-  history yet borrows the average of the other days).
+- otherwise it applies the value remembered for this slot. An empty slot gets a linear blend of the previous and
+  next known slots of that weekday (around midnight too); a weekday with no history yet borrows the average of
+  the other days.
 
-Learning rule: `new = old + alpha * (your_value - old)`. The first value learned for a day is taken as is.
+Learning rule: `new = old + alpha * (your_value - old)` (`alpha` 0.7 by default). The first value learned for a
+slot is taken as is. Wheel gestures are learned once, 10 s after you stop spinning, so a burst of notches teaches
+only the value you settled on.
 
 ## Requirements
 

@@ -39,7 +39,8 @@ the change is learned right away like any manual adjustment. This relies on `dbu
 `dbus-bin`), because Qt does not expose the wheel event of a tray icon.
 
 If one notch moves more or less than `scroll_step`, run `dimmery scroll-test`, spin one notch over the icon and
-set `scroll_notch` (the wheel delta of a single notch, 120 by default) in `config.toml`. Every wheel gesture is also
+set `scroll_notch` (the wheel delta of a single notch, 120 by default) in `config.toml`. KDE's mouse scroll
+speed scales the delta (a 1.5x speed sends 180 per notch, which at 120 would move two steps). Every wheel gesture is also
 logged as `scroll_input` with its raw delta.
 
 A monitor that does not answer (off, asleep) is logged once as `offline` and marked `recovered` on the first good

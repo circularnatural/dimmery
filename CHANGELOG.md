@@ -16,3 +16,4 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 - 18/10/2026 -> Unreachable monitor is logged once as `offline` (and `recovered`), not as an error every tick; all events carry a UTC offset; the dbus-monitor child dies with the app (SIGTERM handler + pdeathsig); `dimmery scroll-test` and `scroll_notch` calibrate the wheel, gestures are logged as `scroll_input`.
 - 18/10/2026 -> Learning quality: wheel bursts are learned once, 10 s after they stop; an empty slot is interpolated between its known neighbours instead of copying the nearest one; default `alpha` 0.5 -> 0.7.
 - 18/10/2026 -> Docs: KDE scroll speed scales the wheel delta; calibrate `scroll_notch` with `dimmery scroll-test`.
+- 21/10/2026 -> Tray tooltip re-resolves the Plasma display when PowerDevil renumbers it (display0 -> display11) and ticks as soon as Plasma sees the monitor again, instead of staying "monitor not answering" until the next tick.

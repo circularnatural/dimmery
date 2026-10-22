@@ -32,3 +32,38 @@ def test_about_dialog_shows_version_and_repo(tmp_path):
     text = " ".join(label.text() for label in dialog.findChildren(QLabel))
     assert __version__ in text
     assert REPO_URL in text
+
+
+def test_tooltip_survives_powerdevil_renumbering_displays(monkeypatch, tmp_path):
+    from PyQt6.QtWidgets import QApplication
+
+    from dimmery import core
+    from dimmery.gui import App
+
+    app = QApplication.instance() or QApplication([])
+    assert app is not None
+    paths = iter(["/org/kde/ScreenBrightness/display0", "/org/kde/ScreenBrightness/display11"])
+    monkeypatch.setattr(core, "plasma_display", lambda: next(paths))
+    monkeypatch.setattr(core, "plasma_percent", lambda path: 57 if path.endswith("display11") else None)
+    ui = App(core.load_config(tmp_path / "none.toml"), tmp_path, True)
+    ui.scroll_timer.stop()
+    ui.update_tooltip()  # display0 no longer answers -> must resolve display11 and show 57
+    assert "57%" in ui.tray.toolTip()
+
+
+def test_plasma_seeing_the_monitor_again_triggers_a_tick(monkeypatch, tmp_path):
+    from PyQt6.QtWidgets import QApplication
+
+    from dimmery import core
+    from dimmery.gui import App
+
+    app = QApplication.instance() or QApplication([])
+    assert app is not None
+    monkeypatch.setattr(core, "plasma_display", lambda: "/p/display0")
+    monkeypatch.setattr(core, "plasma_percent", lambda path: 57)
+    ui = App(core.load_config(tmp_path / "none.toml"), tmp_path, True)
+    ticks = []
+    monkeypatch.setattr(ui, "tick", lambda *a, **k: ticks.append(1))
+    ui.offline = True
+    ui.update_tooltip()
+    assert ticks == [1] and ui.offline is False

@@ -179,7 +179,7 @@ class App:
         self.cfg, self.state_dir, self.dry_run = cfg, state_dir, dry_run
         self.paused, self.worker, self.restart_requested = False, None, False
         self.scroll_delta = 0
-        self.status_text, self.plasma_path = "starting...", None
+        self.status_text, self.plasma_path, self.offline = "starting...", None, False
         self.scroll_timer = QTimer()
         self.scroll_timer.setSingleShot(True)
         self.scroll_timer.setInterval(350)
@@ -251,11 +251,26 @@ class App:
         self.win.status.setText(text)
         self.update_tooltip()
 
+    def plasma_level(self):
+        """The percentage Plasma reports. PowerDevil renumbers its displays when the monitor reconnects
+        (display0 -> display11), so a path that stops answering is dropped and resolved again."""
+        for _ in range(2):
+            if self.plasma_path is None:
+                self.plasma_path = core.plasma_display()
+            if self.plasma_path is None:
+                return None
+            level = core.plasma_percent(self.plasma_path)
+            if level is not None:
+                return level
+            self.plasma_path = None
+        return None
+
     def update_tooltip(self):
         """Tooltip leads with the brightness Plasma reports, like KDE's own brightness widget."""
-        if self.plasma_path is None:
-            self.plasma_path = core.plasma_display()
-        level = core.plasma_percent(self.plasma_path) if self.plasma_path else None
+        level = self.plasma_level()
+        if level is not None and self.offline:  # Plasma sees the monitor again: do not wait for the next tick
+            self.offline = False
+            self.tick()
         head = "Dimmery" if level is None else f"Dimmery: screen brightness at {level}%"
         self.tray.setToolTip(f"{head}\n{self.status_text}")
 
@@ -300,8 +315,10 @@ class App:
         elif ev["action"] == "scroll":
             self.set_status(f"brightness {ev['target']}% (will be learned when you stop)")
         elif ev["action"] == "offline":
+            self.offline = True
             self.set_status("monitor not answering (off or asleep?)")
         else:
+            self.offline = False
             self.set_status(f"{ev['read']}% | {ev['daytype']} slot {ev['slot']} | {ev['action']}")
         self.win.refresh()
 

@@ -8,6 +8,7 @@ Dimmery learns your brightness habits for an external DDC/CI monitor (Linux). Py
 - `src/dimmery/main.py`: CLI (`tick`, `show`, `gui`). `src/dimmery/gui.py`: tray and window (PyQt6).
 - `tests/`: `test_core.py` covers the decision logic without hardware; the GUI test runs offscreen.
 - `contrib/systemd/`: user units to run `dimmery tick` from a timer.
+- `governance/`: `BACKLOG.md`, `DECISION_LOG.md` (append-only, next free `D-NNN`), `SESSION_LOG.md`. `docs/ARCHITECTURE.md`: tick flow and modules.
 
 ## Commands
 

@@ -58,8 +58,8 @@ tick, instead of one error every 30 minutes.
 ## Status
 
 Early, in daily use on one machine (Acer XV325QK V3 over DisplayPort, KDE Plasma on Wayland). Validated live:
-reading, writing (`apply`), learning a manual change and the tray icon. Not validated yet: long unattended
-runs, autostart after a reboot, and learning from changes made on the monitor's own OSD.
+reading, writing (`apply`), learning a manual change and the tray icon. Autostart after a reboot works (XDG `.desktop`). Not validated yet: long
+unattended runs and learning from changes made on the monitor's own OSD (icebox). Pending work: `governance/BACKLOG.md`.
 
 ## Limits
 
